@@ -13,8 +13,15 @@ import (
 )
 
 var outlookBackupDestinationPath string
+var outlookDataPath string
 
 func main() {
+	// Get current user
+	user, err := user.Current()
+	if err != nil {
+		panic(err)
+	}
+
 	// Commandline menu
 	// Subcommands
 	backupCommand := flag.NewFlagSet("backup", flag.ExitOnError)
@@ -49,8 +56,10 @@ func main() {
 	// Evaluate which flags where passed to the subcommand
 	if backupCommand.Parsed() {
 		if *signatureBackupSrc == "" {
-			// backupCommand.PrintDefaults()
-			// os.Exit(1)
+			// If no src value is supplied revert to "Main Profile" standard location
+			outlookDataPath = user.HomeDir + "/Library/Group Containers/UBF8T346G9.Office/Outlook/Outlook 15 Profiles/Main Profile/Data"
+		} else {
+			outlookDataPath = *signatureBackupSrc
 		}
 		if *signatureBackupDst == "" {
 			backupCommand.PrintDefaults()
@@ -67,17 +76,9 @@ func main() {
 		}
 	}
 
-	// Get current user
-	user, err := user.Current()
-	if err != nil {
-		panic(err)
-	}
-
 	// Placeholder paths
-	outlookDataPath := user.HomeDir + "/Library/Group Containers/UBF8T346G9.Office/Outlook/Outlook 15 Profiles/Main Profile/Data"
 	outlookDatabasePath := outlookDataPath + "/Outlook.sqlite"
 	outlookSignaturesPath := outlookDataPath + "/Signatures"
-	// outlookBackupDestinationPath := "/tmp/outlookBackup"
 
 	fmt.Println(*signatureBackupDst)
 	databaseCheckIfExists(outlookDatabasePath)

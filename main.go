@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/user"
 	"strings"
@@ -33,11 +34,13 @@ func backupSignatures(data []string, outlookSignaturesPath string, outlookBackup
 		var split = strings.Split(v, "/")
 		var folderName = split[2]
 		var signatureName = split[3]
-		// var signatureSourcePath = outlookSignaturesPath + "/" + folderName
+		var signatureSourcePath = outlookSignaturesPath + "/" + folderName
 		var signatureDestinationPath = outlookBackupDestinationPath + "/" + folderName
 		fmt.Println("Backing up signature: " + signatureName)
 		// Creates directory to store the signature
 		createDirectory(signatureDestinationPath)
+		// Copy signatures to backup destination
+		copyFile(signatureSourcePath+"/"+signatureName, signatureDestinationPath+"/"+signatureName)
 	}
 }
 
@@ -71,5 +74,20 @@ func databaseReadSignatures(outlookDatabasePath string) []string {
 func createDirectory(path string) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		os.Mkdir(path, 0775)
+	}
+}
+
+// TODO: Fail on file already exist
+// copyFile copies file at src to dst
+func copyFile(src string, dst string) {
+	// Read file from src
+	data, err := ioutil.ReadFile(src)
+	if err != nil {
+		panic(err)
+	}
+	// Write file to dst
+	err = ioutil.WriteFile(dst, data, 0644)
+	if err != nil {
+		panic(err)
 	}
 }

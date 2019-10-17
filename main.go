@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -11,7 +12,62 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+var outlookBackupDestinationPath string
+
 func main() {
+	// Commandline menu
+	// Subcommands
+	backupCommand := flag.NewFlagSet("backup", flag.ExitOnError)
+	restoreCommand := flag.NewFlagSet("restore", flag.ExitOnError)
+
+	// backup subcommand flag pointers
+	signatureBackupSrc := backupCommand.String("src", "", "Target outlook profile to backup (Optional).")
+	signatureBackupDst := backupCommand.String("dst", "", "Destination of the signatures backup (Required).")
+
+	// restore subcommand flag pointers
+	restoreTextPtr := restoreCommand.String("src", "", "Target signature backup to restore. (Required)")
+
+	// Verify that a subcommand has been provided
+	if len(os.Args) < 2 {
+		flag.Usage = flagUsage
+		flag.Usage()
+		fmt.Println("\"backup\" or \"restore\" subcommand is required")
+		os.Exit(0)
+	}
+
+	switch os.Args[1] {
+	case "backup":
+		backupCommand.Parse(os.Args[2:])
+	case "restore":
+		restoreCommand.Parse(os.Args[2:])
+	default:
+		fmt.Println("\"backup\" or \"restore\" subcommand is required")
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	// Evaluate which flags where passed to the subcommand
+	if backupCommand.Parsed() {
+		if *signatureBackupSrc == "" {
+			// backupCommand.PrintDefaults()
+			// os.Exit(1)
+		}
+		if *signatureBackupDst == "" {
+			backupCommand.PrintDefaults()
+			os.Exit(0)
+		} else {
+			outlookBackupDestinationPath = *signatureBackupDst
+		}
+	}
+
+	if restoreCommand.Parsed() {
+		if *restoreTextPtr == "" {
+			restoreCommand.PrintDefaults()
+			os.Exit(1)
+		}
+	}
+
+	// Get current user
 	user, err := user.Current()
 	if err != nil {
 		panic(err)
@@ -21,15 +77,24 @@ func main() {
 	outlookDataPath := user.HomeDir + "/Library/Group Containers/UBF8T346G9.Office/Outlook/Outlook 15 Profiles/Main Profile/Data"
 	outlookDatabasePath := outlookDataPath + "/Outlook.sqlite"
 	outlookSignaturesPath := outlookDataPath + "/Signatures"
-	outlookBackupDestinationPath := "/tmp/outlookBackup"
+	// outlookBackupDestinationPath := "/tmp/outlookBackup"
 
+	fmt.Println(*signatureBackupDst)
 	databaseCheckIfExists(outlookDatabasePath)
 	backupSignatures(databaseReadSignatures(outlookDatabasePath), outlookSignaturesPath, outlookBackupDestinationPath)
+
+}
+
+func flagUsage() {
+	fmt.Printf("Usage: %s [OPTIONS] argument ...\n", os.Args[0])
+	flag.PrintDefaults()
 }
 
 // backupSignatures queries the outlook database for active signatures, it then
 // copies found signatures to the target destination
 func backupSignatures(data []string, outlookSignaturesPath string, outlookBackupDestinationPath string) {
+	// Creates directory to store the signature backup
+	createDirectory(outlookBackupDestinationPath)
 	for _, v := range data {
 		var split = strings.Split(v, "/")
 		var folderName = split[2]
@@ -37,7 +102,7 @@ func backupSignatures(data []string, outlookSignaturesPath string, outlookBackup
 		var signatureSourcePath = outlookSignaturesPath + "/" + folderName
 		var signatureDestinationPath = outlookBackupDestinationPath + "/" + folderName
 		fmt.Println("Backing up signature: " + signatureName)
-		// Creates directory to store the signature
+		// Creates directories for individual signatures
 		createDirectory(signatureDestinationPath)
 		// Copy signatures to backup destination
 		copyFile(signatureSourcePath+"/"+signatureName, signatureDestinationPath+"/"+signatureName)

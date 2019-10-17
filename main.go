@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -18,8 +19,26 @@ func main() {
 	// Placeholder paths
 	outlookDataPath := user.HomeDir + "/Library/Group Containers/UBF8T346G9.Office/Outlook/Outlook 15 Profiles/Main Profile/Data"
 	outlookDatabasePath := outlookDataPath + "/Outlook.sqlite"
+	outlookSignaturesPath := outlookDataPath + "/Signatures"
+	outlookBackupDestinationPath := "/tmp/outlookBackup"
+
 	databaseCheckIfExists(outlookDatabasePath)
-	databaseReadSignatures(outlookDatabasePath)
+	backupSignatures(databaseReadSignatures(outlookDatabasePath), outlookSignaturesPath, outlookBackupDestinationPath)
+}
+
+// backupSignatures queries the outlook database for active signatures, it then
+// copies found signatures to the target destination
+func backupSignatures(data []string, outlookSignaturesPath string, outlookBackupDestinationPath string) {
+	for _, v := range data {
+		var split = strings.Split(v, "/")
+		var folderName = split[2]
+		var signatureName = split[3]
+		// var signatureSourcePath = outlookSignaturesPath + "/" + folderName
+		var signatureDestinationPath = outlookBackupDestinationPath + "/" + folderName
+		fmt.Println("Backing up signature: " + signatureName)
+		// Creates directory to store the signature
+		createDirectory(signatureDestinationPath)
+	}
 }
 
 // Check if the Outlook database is present
@@ -46,4 +65,11 @@ func databaseReadSignatures(outlookDatabasePath string) []string {
 	}
 	fmt.Printf("%v", signatureSlice)
 	return signatureSlice
+}
+
+// createDirectory creates directory at given path
+func createDirectory(path string) {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		os.Mkdir(path, 0775)
+	}
 }

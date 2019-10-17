@@ -42,6 +42,8 @@ func backupSignatures(data []string, outlookSignaturesPath string, outlookBackup
 		// Copy signatures to backup destination
 		copyFile(signatureSourcePath+"/"+signatureName, signatureDestinationPath+"/"+signatureName)
 	}
+	// Save signature information gathered from database to plaintext file
+	printToFile(outlookBackupDestinationPath+"/"+"sql.txt", data)
 }
 
 // Check if the Outlook database is present
@@ -90,4 +92,17 @@ func copyFile(src string, dst string) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+// printToFile writes provided values to filePath
+func printToFile(filePath string, values []string) error {
+	f, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	for _, value := range values {
+		fmt.Fprintln(f, value)
+	}
+	return nil
 }

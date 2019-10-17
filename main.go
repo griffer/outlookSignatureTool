@@ -77,13 +77,10 @@ func main() {
 	}
 
 	// Placeholder paths
-	outlookDatabasePath := outlookDataPath + "/Outlook.sqlite"
 	outlookSignaturesPath := outlookDataPath + "/Signatures"
 
-	fmt.Println(*signatureBackupDst)
-	databaseCheckIfExists(outlookDatabasePath)
-	backupSignatures(databaseReadSignatures(outlookDatabasePath), outlookSignaturesPath, outlookBackupDestinationPath)
-
+	databaseCheckIfExists(outlookDataPath)
+	backupSignatures(databaseReadSignatures(outlookDataPath), outlookSignaturesPath, outlookBackupDestinationPath)
 }
 
 func flagUsage() {
@@ -113,7 +110,8 @@ func backupSignatures(data []string, outlookSignaturesPath string, outlookBackup
 }
 
 // Check if the Outlook database is present
-func databaseCheckIfExists(outlookDatabasePath string) {
+func databaseCheckIfExists(outlookDataPath string) {
+	outlookDatabasePath := outlookDataPath + "/Outlook.sqlite"
 	if _, err := os.Stat(outlookDatabasePath); err != nil {
 		if os.IsNotExist(err) {
 			fmt.Println("Outlook database not found")
@@ -123,7 +121,8 @@ func databaseCheckIfExists(outlookDatabasePath string) {
 }
 
 // databaseReadSignatures returns a slice of all signatures configured in outlook
-func databaseReadSignatures(outlookDatabasePath string) []string {
+func databaseReadSignatures(outlookDataPath string) []string {
+	outlookDatabasePath := outlookDataPath + "/Outlook.sqlite"
 	var signatureSlice []string
 	database, _ := sql.Open("sqlite3", outlookDatabasePath)
 	rows, _ := database.Query("SELECT Record_RecordID, PathToDataFile FROM Signatures")

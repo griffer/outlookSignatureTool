@@ -76,11 +76,9 @@ func main() {
 		}
 	}
 
-	// Placeholder paths
-	outlookSignaturesPath := outlookDataPath + "/Signatures"
-
 	databaseCheckIfExists(outlookDataPath)
-	backupSignatures(databaseReadSignatures(outlookDataPath), outlookSignaturesPath, outlookBackupDestinationPath)
+	backupSignatures(databaseReadSignatures(outlookDataPath), outlookDataPath, outlookBackupDestinationPath)
+
 }
 
 func flagUsage() {
@@ -90,14 +88,14 @@ func flagUsage() {
 
 // backupSignatures queries the outlook database for active signatures, it then
 // copies found signatures to the target destination
-func backupSignatures(data []string, outlookSignaturesPath string, outlookBackupDestinationPath string) {
+func backupSignatures(data []string, outlookDataPath string, outlookBackupDestinationPath string) {
 	// Creates directory to store the signature backup
 	createDirectory(outlookBackupDestinationPath)
 	for _, v := range data {
 		var split = strings.Split(v, "/")
 		var folderName = split[2]
 		var signatureName = split[3]
-		var signatureSourcePath = outlookSignaturesPath + "/" + folderName
+		var signatureSourcePath = outlookDataPath + "/Signatures/" + folderName
 		var signatureDestinationPath = outlookBackupDestinationPath + "/" + folderName
 		fmt.Println("Backing up signature: " + signatureName)
 		// Creates directories for individual signatures

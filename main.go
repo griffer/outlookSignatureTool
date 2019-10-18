@@ -28,11 +28,12 @@ func main() {
 	restoreCommand := flag.NewFlagSet("restore", flag.ExitOnError)
 
 	// backup subcommand flag pointers
-	signatureBackupSrc := backupCommand.String("src", "", "Target outlook profile to backup (Optional).")
-	signatureBackupDst := backupCommand.String("dst", "", "Destination of the signatures backup (Required).")
+	signatureBackupSrc := backupCommand.String("src", "", "Target outlook profile to backup. (Optional).")
+	signatureBackupDst := backupCommand.String("dst", "", "Destination of the signatures backup. (Required).")
 
 	// restore subcommand flag pointers
-	restoreTextPtr := restoreCommand.String("src", "", "Target signature backup to restore. (Required)")
+	signatureRestoreSrc := restoreCommand.String("src", "", "Target signature backup to restore. (Required)")
+	signatureRestoreDst := restoreCommand.String("dst", "", "Target outlook profile to restore backup to. (Optional)")
 
 	// Verify that a subcommand has been provided
 	if len(os.Args) < 2 {
@@ -53,7 +54,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Evaluate which flags where passed to the subcommand
+	// Evaluate which flags where passed to the backup subcommand
 	if backupCommand.Parsed() {
 		if *signatureBackupSrc == "" {
 			// If no src value is supplied revert to "Main Profile" standard location
@@ -67,23 +68,43 @@ func main() {
 		} else {
 			outlookBackupDestinationPath = *signatureBackupDst
 		}
+		databaseCheckIfExists(outlookDataPath)
+		backupSignatures(databaseReadSignatures(outlookDataPath), outlookDataPath, outlookBackupDestinationPath)
 	}
 
+	// Evaluate which flags where passed to the restore subcommand
 	if restoreCommand.Parsed() {
-		if *restoreTextPtr == "" {
+		if *signatureRestoreSrc == "" {
 			restoreCommand.PrintDefaults()
 			os.Exit(1)
+		} else {
+			outlookBackupDestinationPath = *signatureRestoreSrc
 		}
+		if *signatureRestoreDst == "" {
+			// If no dst value is supplied revert to "Main Profile" standard location
+			outlookDataPath = user.HomeDir + "/Library/Group Containers/UBF8T346G9.Office/Outlook/Outlook 15 Profiles/Main Profile/Data"
+		} else {
+			outlookDataPath = *signatureBackupSrc
+		}
+		backupSignaturesVerify(outlookBackupDestinationPath)
+		databaseCheckIfExists(outlookDataPath)
 	}
-
-	databaseCheckIfExists(outlookDataPath)
-	backupSignatures(databaseReadSignatures(outlookDataPath), outlookDataPath, outlookBackupDestinationPath)
 
 }
 
 func flagUsage() {
 	fmt.Printf("Usage: %s [OPTIONS] argument ...\n", os.Args[0])
 	flag.PrintDefaults()
+}
+
+// rudimentary check of the signature backup file
+func backupSignaturesVerify(outlookBackupDestinationPath string) {
+	if _, err := os.Stat(outlookBackupDestinationPath + "/sql.txt"); err != nil {
+		if os.IsNotExist(err) {
+			fmt.Println("sql.txt not found in provided backup path")
+			panic(err)
+		}
+	}
 }
 
 // backupSignatures queries the outlook database for active signatures, it then

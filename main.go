@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/user"
 	"strings"
@@ -30,12 +29,12 @@ func main() {
 	restoreCommand := flag.NewFlagSet("restore", flag.ExitOnError)
 
 	// backup subcommand flag pointers
-	signatureBackupSrc := backupCommand.String("src", "", "Target outlook profile to backup. (Optional).")
-	signatureBackupDst := backupCommand.String("dst", "", "Destination of the signatures backup. (Required).")
+	signatureBackupSrc := backupCommand.String("outlook", "", "Target outlook profile to backup from. (Optional).")
+	signatureBackupDst := backupCommand.String("backup", "", "Target destination to store backup in. (Required).")
 
 	// restore subcommand flag pointers
-	signatureRestoreSrc := restoreCommand.String("src", "", "Target signature backup to restore. (Required)")
-	signatureRestoreDst := restoreCommand.String("dst", "", "Target outlook profile to restore backup to. (Optional)")
+	signatureRestoreSrc := restoreCommand.String("backup", "", "Target backup folder to restore from. (Required)")
+	signatureRestoreDst := restoreCommand.String("outlook", "", "Target outlook profile to restore to. (Optional)")
 
 	// Verify that a subcommand has been provided
 	if len(os.Args) < 2 {
@@ -88,10 +87,8 @@ func main() {
 		} else {
 			outlookDataPath = *signatureBackupSrc
 		}
-		backupSignaturesVerify(outlookBackupDestinationPath)
 		databaseCheckIfExists(outlookDataPath)
 		restoreSignatures(outlookDataPath, outlookBackupDestinationPath)
-		databaseUpdateSignaturesMaxRowID(outlookDataPath)
 	}
 
 }
@@ -101,7 +98,7 @@ func flagUsage() {
 	flag.PrintDefaults()
 }
 
-// rudimentary check of the signature backup file
+// Rudimentary check of the signature backup file
 func backupSignaturesVerify(outlookBackupDestinationPath string) {
 	if _, err := os.Stat(outlookBackupDestinationPath + "/sql.txt"); err != nil {
 		if os.IsNotExist(err) {
@@ -112,12 +109,15 @@ func backupSignaturesVerify(outlookBackupDestinationPath string) {
 }
 
 func restoreSignatures(outlookDataPath string, outlookBackupDestinationPath string) {
-	// TODO: Cleanup error handling
 	file, err := os.Open(outlookBackupDestinationPath + "/sql.txt")
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("sql.txt not found in provided backup path")
+		panic(err)
 	}
 	defer file.Close()
+
+	// Verify the signature backup files
+	backupSignaturesVerify(outlookBackupDestinationPath)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() { // internally, it advances token based on sperator
@@ -125,16 +125,16 @@ func restoreSignatures(outlookDataPath string, outlookBackupDestinationPath stri
 		var recordID = split[0]
 		var folderName = split[2]
 		var signatureName = split[3]
-		fmt.Println(recordID)
-		fmt.Println(folderName)
-		fmt.Println(signatureName)
+		fmt.Println("Restoring signature: " + signatureName)
 		// Create signature directory in the outlook Signatures directory
 		createDirectory(outlookDataPath + "/Signatures/" + folderName)
 		// Copy the signature to the outlook Signatures directory
 		copyFile(outlookBackupDestinationPath+"/"+folderName+"/"+signatureName, outlookDataPath+"/Signatures/"+folderName+"/"+signatureName)
-
+		// Write signature information to the Signatures table
 		databaseWriteSignatures(outlookDataPath, folderName+"/"+signatureName, recordID)
 	}
+	// Updates the sqlite_sequence table with the new max recordID
+	databaseUpdateSignaturesMaxRowID(outlookDataPath)
 }
 
 // backupSignatures queries the outlook database for active signatures, it then
@@ -182,15 +182,12 @@ func databaseReadSignatures(outlookDataPath string) []string {
 		// For now we combine the RecordID field from the database with the PathToDataFile field
 		signatureSlice = append(signatureSlice, RecordID+"/"+PathToDataFile)
 	}
-	fmt.Printf("%v", signatureSlice)
 	return signatureSlice
 }
 
 // Write restored signature paths to the Signatures table
 func databaseWriteSignatures(outlookDataPath string, pathToDataFile string, recordID string) {
 	outlookDatabasePath := outlookDataPath + "/Outlook.sqlite"
-	fmt.Println("record id -> " + recordID)
-	fmt.Println("pathToDataFile -> " + "/Signatures/" + pathToDataFile)
 	database, _ := sql.Open("sqlite3", outlookDatabasePath)
 	statement, _ := database.Prepare("INSERT INTO Signatures (Record_RecordID, PathToDataFile) VALUES (?,?)")
 	statement.Exec(recordID, "Signatures/"+pathToDataFile)

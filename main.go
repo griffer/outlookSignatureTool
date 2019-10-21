@@ -91,6 +91,7 @@ func main() {
 		backupSignaturesVerify(outlookBackupDestinationPath)
 		databaseCheckIfExists(outlookDataPath)
 		restoreSignatures(outlookDataPath, outlookBackupDestinationPath)
+		databaseUpdateSignaturesMaxRowID(outlookDataPath)
 	}
 
 }
@@ -121,16 +122,18 @@ func restoreSignatures(outlookDataPath string, outlookBackupDestinationPath stri
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() { // internally, it advances token based on sperator
 		var split = strings.Split(scanner.Text(), "/")
-		var databaseID = split[0]
+		var recordID = split[0]
 		var folderName = split[2]
 		var signatureName = split[3]
-		fmt.Println(databaseID)
+		fmt.Println(recordID)
 		fmt.Println(folderName)
 		fmt.Println(signatureName)
 		// Create signature directory in the outlook Signatures directory
 		createDirectory(outlookDataPath + "/Signatures/" + folderName)
 		// Copy the signature to the outlook Signatures directory
 		copyFile(outlookBackupDestinationPath+"/"+folderName+"/"+signatureName, outlookDataPath+"/Signatures/"+folderName+"/"+signatureName)
+
+		databaseWriteSignatures(outlookDataPath, folderName+"/"+signatureName, recordID)
 	}
 }
 
@@ -181,6 +184,32 @@ func databaseReadSignatures(outlookDataPath string) []string {
 	}
 	fmt.Printf("%v", signatureSlice)
 	return signatureSlice
+}
+
+// Write restored signature paths to the Signatures table
+func databaseWriteSignatures(outlookDataPath string, pathToDataFile string, recordID string) {
+	outlookDatabasePath := outlookDataPath + "/Outlook.sqlite"
+	fmt.Println("record id -> " + recordID)
+	fmt.Println("pathToDataFile -> " + "/Signatures/" + pathToDataFile)
+	database, _ := sql.Open("sqlite3", outlookDatabasePath)
+	statement, _ := database.Prepare("INSERT INTO Signatures (Record_RecordID, PathToDataFile) VALUES (?,?)")
+	statement.Exec(recordID, "Signatures/"+pathToDataFile)
+}
+
+// databaseUpdateSignaturesMaxRowID updates seq in the sqlite_sequence table
+// to reflect the highest RecordID found in the Signatures table
+func databaseUpdateSignaturesMaxRowID(outlookDataPath string) {
+	outlookDatabasePath := outlookDataPath + "/Outlook.sqlite"
+	database, _ := sql.Open("sqlite3", outlookDatabasePath)
+	// Get current signatures setup in outlook
+	rows, _ := database.Query("SELECT Record_RecordID FROM Signatures ORDER BY Record_RecordID DESC LIMIT 1")
+	var recordRecordID int
+	for rows.Next() {
+		rows.Scan(&recordRecordID)
+	}
+	// Updates seq field in the sqlite_sequence table with the Record_RecordID found above
+	statement, _ := database.Prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'Signatures'")
+	statement.Exec(recordRecordID)
 }
 
 // createDirectory creates directory at given path

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"database/sql"
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/user"
 	"strings"
@@ -88,6 +90,7 @@ func main() {
 		}
 		backupSignaturesVerify(outlookBackupDestinationPath)
 		databaseCheckIfExists(outlookDataPath)
+		restoreSignatures(outlookDataPath, outlookBackupDestinationPath)
 	}
 
 }
@@ -104,6 +107,30 @@ func backupSignaturesVerify(outlookBackupDestinationPath string) {
 			fmt.Println("sql.txt not found in provided backup path")
 			panic(err)
 		}
+	}
+}
+
+func restoreSignatures(outlookDataPath string, outlookBackupDestinationPath string) {
+	// TODO: Cleanup error handling
+	file, err := os.Open(outlookBackupDestinationPath + "/sql.txt")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() { // internally, it advances token based on sperator
+		var split = strings.Split(scanner.Text(), "/")
+		var databaseID = split[0]
+		var folderName = split[2]
+		var signatureName = split[3]
+		fmt.Println(databaseID)
+		fmt.Println(folderName)
+		fmt.Println(signatureName)
+		// Create signature directory in the outlook Signatures directory
+		createDirectory(outlookDataPath + "/Signatures/" + folderName)
+		// Copy the signature to the outlook Signatures directory
+		copyFile(outlookBackupDestinationPath+"/"+folderName+"/"+signatureName, outlookDataPath+"/Signatures/"+folderName+"/"+signatureName)
 	}
 }
 
